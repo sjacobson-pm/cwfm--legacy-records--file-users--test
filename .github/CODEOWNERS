@@ -1,2 +1,37 @@
-# All files - require review from the default code owner(s)
+# CODEOWNERS risk-tier routing for pilot repository
+#
+# Pilot owner used for all required human approvals in this repository:
+#   @sjacobson-pm
+#
+# Placeholder team aliases for migration to org test repository:
+#   - Senior engineering: @ORG/legacy-records-senior-eng
+#   - Security:          @ORG/security-reviewers
+#   - Architecture:      @ORG/architecture-reviewers
+#   - Platform/Admin:    @ORG/platform-admins
+
+# Default catch-all fallback for paths not matched by any later rule.
+# In CODEOWNERS, the last matching rule wins.
 * @sjacobson-pm
+
+# Tier 1 (low risk): docs and non-sensitive paths (baseline owner only)
+/docs/** @sjacobson-pm
+/*.md @sjacobson-pm
+
+# Tier 2 (moderate risk): core feature/service logic
+/src/** @sjacobson-pm
+/lib/** @sjacobson-pm
+
+# Tier 3 (high risk): auth/authz, schema/migrations, retention/regulatory,
+# and public API contract surfaces
+/auth/** @sjacobson-pm
+/security/** @sjacobson-pm
+/db/migrations/** @sjacobson-pm
+/schema/** @sjacobson-pm
+/api/** @sjacobson-pm
+/openapi/** @sjacobson-pm
+
+# Tier 4 (critical governance): workflows, governance, merge controls
+/.github/workflows/** @sjacobson-pm
+/.github/CODEOWNERS @sjacobson-pm
+/.github/copilot-instructions.md @sjacobson-pm
+/.github/pull_request_template.md @sjacobson-pm
