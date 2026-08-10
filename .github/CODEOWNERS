@@ -9,7 +9,8 @@
 #   - Architecture:      @ORG/architecture-reviewers
 #   - Platform/Admin:    @ORG/platform-admins
 
-# Default baseline owner for all paths (low-risk baseline policy)
+# Default fallback owner for unmatched paths.
+# NOTE: In CODEOWNERS, the last matching pattern wins.
 * @sjacobson-pm
 
 # Tier 1 (low risk): docs and non-sensitive paths (baseline owner only)
