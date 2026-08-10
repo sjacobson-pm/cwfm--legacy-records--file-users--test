@@ -10,7 +10,7 @@
 #   - Platform/Admin:    @ORG/platform-admins
 
 # Default catch-all owner, intentionally first.
-# In CODEOWNERS, later tier-specific patterns override this fallback.
+# In CODEOWNERS, the last matching rule wins (later rules override this line).
 * @sjacobson-pm
 
 # Tier 1 (low risk): docs and non-sensitive paths (baseline owner only)
