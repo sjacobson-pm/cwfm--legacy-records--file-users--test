@@ -9,8 +9,8 @@
 #   - Architecture:      @ORG/architecture-reviewers
 #   - Platform/Admin:    @ORG/platform-admins
 
-# Default catch-all owner, intentionally first.
-# In CODEOWNERS, the last matching rule wins (later rules override this line).
+# Default catch-all fallback for paths not matched by any later rule.
+# In CODEOWNERS, the last matching rule wins.
 * @sjacobson-pm
 
 # Tier 1 (low risk): docs and non-sensitive paths (baseline owner only)
