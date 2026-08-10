@@ -54,7 +54,7 @@ When Copilot flags something, treat it as you would a senior reviewer comment: c
 
 ## 4. Risk tiers
 
-Every change in this repository falls into one of four risk tiers. The tier determines what review is required before merge.
+Every change in this repository falls into one of five risk tiers. The tier determines what review is required before merge.
 
 ### Tier 1 — Low risk, CI-only
 Routine changes with limited blast radius. CI passing is sufficient.
@@ -77,7 +77,17 @@ Changes that introduce or modify application behavior. Requires one senior devel
 - New API endpoints with no auth or schema changes
 - Configuration changes that affect runtime behavior
 
-### Tier 3 — Auth, schema, migrations, regulated behavior
+### Tier 3 — Planning documentation
+Changes to planning documents that drive agent-generated code. Because an agentic developer will translate these documents directly into code, edits here have real downstream effects on the codebase. Requires approval from a business owner or architecture owner before merge.
+
+**Examples:**
+- `docs/planning/**`
+- Any specification, architectural decision record, or design document that an agent is expected to implement
+- Feature briefs or requirement files that describe intended system behavior
+
+> **Why this matters:** When a developer (human or agent) reads a planning document and generates code from it, errors or ambiguities in the plan propagate into the implementation. A business or architecture reviewer catching a problem at the planning stage is far cheaper than catching it after code has been written and reviewed.
+
+### Tier 4 — Auth, schema, migrations, regulated behavior
 High-sensitivity changes that affect security boundaries, data integrity, or regulated functionality. Requires approval from a security owner or architecture owner in addition to CI and a senior reviewer.
 
 **Examples:**
@@ -86,7 +96,7 @@ High-sensitivity changes that affect security boundaries, data integrity, or reg
 - Any code in a regulated domain (e.g. financial calculations, audit trails, PII handling)
 - Changes to access control logic or session management
 
-### Tier 4 — Workflows, permissions, infra, CODEOWNERS
+### Tier 5 — Workflows, permissions, infra, CODEOWNERS
 Repository-level controls and infrastructure. Requires both a platform owner and a security owner to approve.
 
 **Examples:**
@@ -136,7 +146,7 @@ Once a week, an automated digest is generated from the previous week's merged pu
 The digest covers:
 
 - PRs merged by tier
-- Any Tier 3 or Tier 4 changes merged in the period
+- Any Tier 4 or Tier 5 changes merged in the period
 - Any escalation triggers that were activated
 - Any agent-assisted PRs and their outcomes
 
