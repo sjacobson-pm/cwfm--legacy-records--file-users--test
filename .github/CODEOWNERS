@@ -9,8 +9,8 @@
 #   - Architecture:      @ORG/architecture-reviewers
 #   - Platform/Admin:    @ORG/platform-admins
 
-# Default fallback owner for unmatched paths.
-# NOTE: In CODEOWNERS, the last matching pattern wins.
+# Default catch-all owner, intentionally first.
+# In CODEOWNERS, later tier-specific patterns override this fallback.
 * @sjacobson-pm
 
 # Tier 1 (low risk): docs and non-sensitive paths (baseline owner only)
