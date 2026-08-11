@@ -32,6 +32,16 @@ linted with yamllint using the configuration in `.yamllint.yml`. The base
 
 ## Extending the policy
 
-To add lint coverage for a new file type, add the appropriate tool and config
-file at the repository root, then wire it into `.github/workflows/lint.yml` as
-a new step.
+To add lint coverage for a new file type, ensure the following steps are also taken:
+
+- Add the appropriate tool and config file at the repository root.
+- Wire it into `.github/workflows/lint.yml` as a new step.
+- Update `docs/LINT-POLICY.md` with a section for the new file type that includes:
+  - A brief description of the file type and the tool used to lint it.
+  - A table with the following columns for each configured rule:
+    | Column | Description |
+    |---|---|
+    | Rule | The rule identifier (e.g., `MD013`, `line-length`) |
+    | Name | A short human-readable name for the rule |
+    | Enforcement | The current setting or value (e.g., `Disabled`, `Max 160 characters`) |
+    | Rationale | Why this rule is enforced or relaxed in this repository |
