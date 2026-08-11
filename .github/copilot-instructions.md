@@ -31,3 +31,7 @@ Use review comments for high-signal, high-confidence risks in this pull request.
 ## Contributor rules
 See `CONTRIBUTING.md` for guidance on how to best contribute
 to this repository.
+
+## Lint policy
+See `docs/LINT-POLICY.md` for the file-type-specific lint rules applied by
+the `lint` status check, and how to extend the policy.
