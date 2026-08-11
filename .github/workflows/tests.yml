@@ -10,20 +10,61 @@ jobs:
   tests:
     name: tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run project tests when available
+      - name: Detect available test suites
+        id: detect
         shell: bash
         run: |
-          set -u
+          set -euo pipefail
+
+          has_npm_test=0
+          if [[ -f package.json ]]; then
+            if python3 -c "import json; from pathlib import Path; s=json.loads(Path('package.json').read_text()).get('scripts',{}).get('test'); raise SystemExit(0 if isinstance(s, str) and s.strip() else 1)"; then
+              has_npm_test=1
+            fi
+          fi
+
+          has_dotnet_projects=0
+          dotnet_projects=$(find . -type f \( -name '*.sln' -o -name '*.csproj' \) \
+            -not -path '*/node_modules/*' \
+            -not -path '*/vendor/*' | wc -l)
+          if [[ "${dotnet_projects}" -gt 0 ]]; then
+            has_dotnet_projects=1
+          fi
+
+          echo "has_npm_test=${has_npm_test}" >> "${GITHUB_OUTPUT}"
+          echo "has_dotnet_projects=${has_dotnet_projects}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.has_npm_test == '1'
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup .NET SDK
+        if: steps.detect.outputs.has_dotnet_projects == '1'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run project tests when available
+        shell: bash
+        env:
+          HAS_NPM_TEST: ${{ steps.detect.outputs.has_npm_test }}
+          HAS_DOTNET_PROJECTS: ${{ steps.detect.outputs.has_dotnet_projects }}
+        run: |
+          set -euo pipefail
           # Add more run_suite calls as new language stacks are introduced.
 
           passed_suites=0
           failed_suites=0
           discovered_suites=0
-          ran_tests=0
+          setup_failures=0
 
           run_suite() {
             local suite="$1"
@@ -32,30 +73,46 @@ jobs:
             echo "Running ${suite}..."
             if "$@"; then
               passed_suites=$((passed_suites + 1))
-              ran_tests=1
               echo "✅ ${suite} passed"
             else
               failed_suites=$((failed_suites + 1))
-              ran_tests=1
               echo "❌ ${suite} failed"
             fi
           }
 
-          if [[ -f package.json ]]; then
-            if jq -e '.scripts.test? | type == "string" and length > 0' package.json > /dev/null; then
-              run_suite "npm test" npm test
+          if [[ "${HAS_NPM_TEST}" == "1" ]]; then
+            npm_setup_ok=0
+            if [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
+              if npm ci; then
+                npm_setup_ok=1
+              else
+                setup_failures=$((setup_failures + 1))
+                echo "❌ npm ci failed"
+              fi
             else
-              echo "Skipping npm test: package.json has no test script."
+              if npm install --no-audit --no-fund; then
+                npm_setup_ok=1
+              else
+                setup_failures=$((setup_failures + 1))
+                echo "❌ npm install failed"
+              fi
+            fi
+            if [[ ${npm_setup_ok} -eq 1 ]]; then
+              run_suite "npm test" npm test
             fi
           fi
 
           # Dotnet support can be expanded with solution-specific filters later.
-          dotnet_projects=$(find . -type f \( -name '*.sln' -o -name '*.csproj' \) | wc -l)
-          if [[ "${dotnet_projects}" -gt 0 ]]; then
-            run_suite "dotnet test" dotnet test --nologo --verbosity normal
+          if [[ "${HAS_DOTNET_PROJECTS}" == "1" ]]; then
+            if command -v dotnet > /dev/null; then
+              run_suite "dotnet test" dotnet test --nologo --verbosity normal
+            else
+              setup_failures=$((setup_failures + 1))
+              echo "❌ dotnet SDK is not available"
+            fi
           fi
 
-          if [[ ${ran_tests} -eq 0 ]]; then
+          if [[ ${discovered_suites} -eq 0 ]]; then
             echo "No tests were discovered yet."
           fi
 
@@ -65,13 +122,16 @@ jobs:
             echo "- Suites discovered: ${discovered_suites}"
             echo "- Suites passed: ${passed_suites}"
             echo "- Suites failed: ${failed_suites}"
-            if [[ ${ran_tests} -eq 0 ]]; then
+            echo "- Setup failures: ${setup_failures}"
+            if [[ ${discovered_suites} -eq 0 && ${setup_failures} -gt 0 ]]; then
+              echo "- Result: Setup failed before tests could run."
+            elif [[ ${discovered_suites} -eq 0 ]]; then
               echo "- Result: No test suite found yet (passing by design)."
             else
               echo "- Result: Test suites were executed."
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
 
-          if [[ ${failed_suites} -gt 0 ]]; then
+          if [[ ${failed_suites} -gt 0 || ${setup_failures} -gt 0 ]]; then
             exit 1
           fi
