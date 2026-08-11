@@ -135,7 +135,7 @@ For *Require review from Code Owners* to take effect, the repository must have a
 
 1. Create `.github/CODEOWNERS` with at minimum:
 
-   ```
+   ```text
    # All files — require review from the default code owner(s)
    * @<owner-username-or-team>
    ```

@@ -1,0 +1,19 @@
+{
+  // Markdownlint configuration for this repository.
+  // Relaxed rules suited to documentation and GitHub configuration files.
+  "config": {
+    "default": true,
+    // Line length: not enforced in documentation-heavy repos.
+    "MD013": false,
+    // PR templates and GitHub config files do not start with a top-level heading.
+    "MD041": false,
+    // Table column style: allow both compact and padded pipes.
+    "MD060": false,
+    // Link fragment validation produces false positives in some renderers.
+    "MD051": false,
+    // Blank lines around headings: not enforced for compact reference docs.
+    "MD022": false,
+    // Blank lines around lists: not enforced for compact reference docs.
+    "MD032": false
+  }
+}

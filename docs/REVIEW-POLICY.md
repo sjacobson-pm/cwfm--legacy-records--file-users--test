@@ -125,7 +125,7 @@ If your change touches any of these areas, request a human review before you exp
 
 When a commit is authored or co-authored by the Copilot coding agent, it must include the following Git trailer in the commit message:
 
-```
+```text
 Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>
 ```
 
