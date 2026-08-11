@@ -33,3 +33,26 @@ Use review comments for high-signal, high-confidence risks in this pull request.
 - Keep subjects at or under 70 characters.
 - Do not use prefix conventions such as `[agent]:` or `[chore]:`.
 - A `Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>` trailer is allowed when applicable.
+
+## Agent contributor rules
+
+See `CONTRIBUTING.md` for the full contributor guide.
+Key rules for automated contributors:
+
+- **Never create placeholder planning commits** such as
+  `Initial plan`, `WIP`, or `Add placeholder`.
+  All planning belongs in issue comments, PR descriptions,
+  or agent reasoning — not in commit history.
+- Every commit subject must follow the capitalized-
+  imperative-verb rule and the 70-character limit above.
+- Commit bodies must be separated from the subject by a
+  blank line and wrap at 70 characters per line.
+- Before considering work complete, verify all required
+  status checks pass:
+  - `lint` (`.github/workflows/lint.yml`)
+  - `tests` (`.github/workflows/tests.yml`)
+  - `commit-message-validation`
+  - `pr-compliance`
+- Populate all required PR template fields
+  (Description, Related Issue, Types of changes, Checklist)
+  before requesting review.
