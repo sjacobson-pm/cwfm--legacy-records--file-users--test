@@ -59,6 +59,29 @@ Before requesting review, make sure your PR:
 - References the related issue (e.g., `Closes #13`)
 - Passes all required status checks
 
+## Lint policy
+
+The `lint` check applies file-type-appropriate rules so that prose-heavy
+documentation and strict workflow/config files are not held to the same
+line-length standard.
+
+| File type | Tool | Line-length rule |
+|---|---|---|
+| Markdown (`*.md`) | markdownlint-cli2 | Not enforced (`MD013: false`) — write prose naturally |
+| YAML (workflows, config) | yamllint | Max 160 characters |
+
+**Markdown** files are linted with markdownlint. The line-length rule (`MD013`)
+is disabled because wrapping prose at a hard column limit reduces readability
+without improving correctness. All other default markdownlint rules apply.
+
+**YAML** files are linted with yamllint using the configuration in
+`.yamllint.yml`. Line length is capped at 160 characters to keep workflow
+files readable and diff-friendly. Inline scripts inside workflow steps may
+require longer lines, and this limit accommodates them.
+
+Both configurations live at the repository root and can be extended as new
+file types are added.
+
 ## Status checks
 
 The following checks must pass before merging:
