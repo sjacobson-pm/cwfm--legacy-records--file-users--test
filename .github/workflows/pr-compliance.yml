@@ -1,0 +1,86 @@
+name: PR compliance check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  pr-compliance-check:
+    name: PR compliance check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR description fields
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -e
+          ERRORS=()
+
+          # Validate PR title: must start with an imperative verb (capitalized word) and be ≤70 chars
+          TITLE_LEN=${#PR_TITLE}
+          if [ "$TITLE_LEN" -gt 70 ]; then
+            ERRORS+=("PR title exceeds 70 characters (current length: ${TITLE_LEN}).")
+          fi
+          # Title must start with a capital letter (imperative verb convention)
+          if ! echo "$PR_TITLE" | grep -qE '^[A-Z]'; then
+            ERRORS+=("PR title must begin with a capitalized imperative verb (e.g., 'Add feature', 'Fix bug').")
+          fi
+
+          # Helper: check if a section has non-empty, non-comment content after its heading
+          # Usage: section_has_content <heading_literal> <body>
+          section_has_content() {
+            local heading="$1"
+            local body="$2"
+            # Extract content after the heading until the next ## heading or end of string
+            local section
+            section=$(echo "$body" | awk -v h="$heading" '
+              $0 == h {found=1; next}
+              found && /^## /{exit}
+              found{print}
+            ')
+            # Strip blank lines and HTML comments
+            local content
+            content=$(echo "$section" | sed '/^[[:space:]]*$/d' | sed '/^[[:space:]]*<!---/,/--->/d' | sed '/^[[:space:]]*<!--/,/-->/d')
+            [ -n "$content" ]
+          }
+
+          # Check ## Description section has content
+          if ! section_has_content '## Description' "$PR_BODY"; then
+            ERRORS+=("Missing or blank required field: 'Description' — provide a summary of your changes.")
+          fi
+
+          # Check ## Related Issue section has content
+          if ! section_has_content '## Related Issue' "$PR_BODY"; then
+            ERRORS+=("Missing or blank required field: 'Related Issue' — link to the related issue.")
+          fi
+
+          # Check ## Types of changes: at least one checkbox must be checked [x]
+          TYPES_SECTION=$(echo "$PR_BODY" | awk '/^## Types of changes/{found=1; next} found && /^## /{exit} found{print}')
+          if ! echo "$TYPES_SECTION" | grep -qE '^\- \[[xX]\]'; then
+            ERRORS+=("Missing required field: 'Types of changes' — check at least one box that applies.")
+          fi
+
+          # Check ## Checklist: all checkboxes must be checked [x]
+          CHECKLIST_SECTION=$(echo "$PR_BODY" | awk '/^## Checklist/{found=1; next} found && /^## /{exit} found{print}')
+          UNCHECKED=$(echo "$CHECKLIST_SECTION" | grep -cE '^\- \[ \]' || true)
+          if [ "$UNCHECKED" -gt 0 ]; then
+            ERRORS+=("Incomplete checklist: ${UNCHECKED} item(s) in the 'Checklist' section are not checked. Complete all checklist items before submitting.")
+          fi
+
+          # Check ## Screenshots section has content (where applicable)
+          if ! section_has_content '## Screenshots (if appropriate)' "$PR_BODY"; then
+            ERRORS+=("Missing or blank required field: 'Screenshots' — add screenshots or state 'N/A' if not applicable.")
+          fi
+
+          # Report results
+          if [ ${#ERRORS[@]} -gt 0 ]; then
+            echo "::error::PR compliance check failed. The following required fields are missing or incomplete:"
+            for err in "${ERRORS[@]}"; do
+              echo "  - $err"
+              echo "::error::$err"
+            done
+            exit 1
+          fi
+
+          echo "PR compliance check passed. All required fields are present."
