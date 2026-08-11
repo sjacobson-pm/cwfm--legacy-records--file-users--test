@@ -1,0 +1,56 @@
+name: PR compliance check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  pr-compliance-check:
+    name: PR compliance check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR description fields
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const title = context.payload.pull_request.title || '';
+            const errors = [];
+
+            // Strip Copilot suffix
+            const clean = body.split('<!-- START COPILOT CODING AGENT SUFFIX -->')[0];
+
+            // Title checks
+            if (title.length > 70) errors.push(`PR title exceeds 70 characters (${title.length}).`);
+            if (!/^[A-Z]/.test(title)) errors.push('PR title must begin with a capitalized imperative verb.');
+
+            // Section helper: extract content between headings, strip comments and blanks
+            const getSection = (heading) => {
+              const lines = clean.split('\n');
+              let inSection = false;
+              const sectionLines = [];
+              for (const line of lines) {
+                if (line.trim() === heading) { inSection = true; continue; }
+                if (inSection && /^## /.test(line)) break;
+                if (inSection) sectionLines.push(line);
+              }
+              return sectionLines
+                .join('\n')
+                .replace(/<!--[\s\S]*?-->/g, '')
+                .trim();
+            };
+
+            if (!getSection('## Description')) errors.push("Missing or blank: 'Description'");
+            if (!getSection('## Related Issue')) errors.push("Missing or blank: 'Related Issue'");
+            if (!getSection('## Screenshots (if appropriate)')) errors.push("Missing or blank: 'Screenshots'");
+
+            const types = getSection('## Types of changes');
+            if (!/^- \[[xX]\]/m.test(types)) errors.push("'Types of changes': check at least one box.");
+
+            const checklist = getSection('## Checklist');
+            const unchecked = (checklist.match(/^- \[ \]/gm) || []).length;
+            if (unchecked > 0) errors.push(`Checklist: ${unchecked} unchecked item(s).`);
+
+            if (errors.length > 0) {
+              core.setFailed('PR compliance check failed:\n' + errors.map(e => `  - ${e}`).join('\n'));
+            }
