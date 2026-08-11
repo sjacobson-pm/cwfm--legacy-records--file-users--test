@@ -29,31 +29,28 @@ jobs:
             ERRORS+=("PR title must begin with a capitalized imperative verb (e.g., 'Add feature', 'Fix bug').")
           fi
 
-          # Helper: check if a section has non-empty, non-comment content after its heading
-          # Usage: section_has_content <heading_literal> <body>
-          section_has_content() {
+          # Use PR_BODY directly rather than passing as argument to avoid
+          # special character expansion issues in bash function arguments
+          check_section() {
             local heading="$1"
-            local body="$2"
-            # Extract content after the heading until the next ## heading or end of string
             local section
-            section=$(echo "$body" | awk -v h="$heading" '
+            section=$(printf '%s' "$PR_BODY" | awk -v h="$heading" '
               $0 == h {found=1; next}
               found && /^## /{exit}
               found{print}
             ')
-            # Strip blank lines and HTML comments
             local content
-            content=$(echo "$section" | sed '/^[[:space:]]*$/d' | sed '/^[[:space:]]*<!---/,/--->/d' | sed '/^[[:space:]]*<!--/,/-->/d')
+            content=$(printf '%s' "$section" | sed '/^[[:space:]]*$/d' | sed '/^[[:space:]]*<!-/,/>/d')
             [ -n "$content" ]
           }
 
           # Check ## Description section has content
-          if ! section_has_content '## Description' "$PR_BODY"; then
+          if ! check_section '## Description'; then
             ERRORS+=("Missing or blank required field: 'Description' — provide a summary of your changes.")
           fi
 
           # Check ## Related Issue section has content
-          if ! section_has_content '## Related Issue' "$PR_BODY"; then
+          if ! check_section '## Related Issue'; then
             ERRORS+=("Missing or blank required field: 'Related Issue' — link to the related issue.")
           fi
 
@@ -71,7 +68,7 @@ jobs:
           fi
 
           # Check ## Screenshots section has content (where applicable)
-          if ! section_has_content '## Screenshots (if appropriate)' "$PR_BODY"; then
+          if ! check_section '## Screenshots (if appropriate)'; then
             ERRORS+=("Missing or blank required field: 'Screenshots' — add screenshots or state 'N/A' if not applicable.")
           fi
 
