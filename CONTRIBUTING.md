@@ -21,19 +21,19 @@ an issue before starting work, and reference it in your PR.
 
 **Good:**
 
-```
+```text
 Add CodeQL security scanning workflow
 ```
 
 **Bad — placeholder planning commit:**
 
-```
+```text
 Initial plan
 ```
 
 **Bad — prefix convention:**
 
-```
+```text
 [agent]: add codeql workflow
 ```
 
