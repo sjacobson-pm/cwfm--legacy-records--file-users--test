@@ -34,5 +34,4 @@ to this repository.
 
 ## Lint policy
 See `docs/LINT-POLICY.md` for the file-type-specific lint rules applied by
-the `lint` status check. Markdown files are not subject to the YAML
-line-length cap — prose can be written naturally.
+the `lint` status check, and how to extend the policy.
