@@ -29,4 +29,5 @@ Use review comments for high-signal, high-confidence risks in this pull request.
 - Treat CI-owned categories (format, lint, basic style) as CI responsibility unless you see additional correctness or security risk.
 
 ## Contributor rules
-See `CONTRIBUTING.md` for repository commit and PR conventions.
+See `CONTRIBUTING.md` for guidance on how to best contribute
+to this repository.

@@ -77,7 +77,8 @@ requesting review.
 
 - **Do not create placeholder planning commits** such as
   `Initial plan`, `WIP`, or `Add placeholder`. Planning
-  belongs in issue comments, PR descriptions, or reasoning,
+  belongs in issue comments, PR descriptions, reasoning,
+  or planning documents (e.g., `.planning/`, `.specify/`),
   not in commit history.
 - Inspect the required status checks listed above and
   confirm they all pass before considering work complete.
