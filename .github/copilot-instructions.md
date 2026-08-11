@@ -28,8 +28,6 @@ Use review comments for high-signal, high-confidence risks in this pull request.
 - Do not re-surface previously accepted low-priority patterns.
 - Treat CI-owned categories (format, lint, basic style) as CI responsibility unless you see additional correctness or security risk.
 
-## Repository conventions for Copilot-generated commits/PR text
-- Commit and PR subjects must start with an imperative, capitalized verb.
-- Keep subjects at or under 70 characters.
-- Do not use prefix conventions such as `[agent]:` or `[chore]:`.
-- A `Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>` trailer is allowed when applicable.
+## Contributor rules
+See `CONTRIBUTING.md` for guidance on how to best contribute
+to this repository.
