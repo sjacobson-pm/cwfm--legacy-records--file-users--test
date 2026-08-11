@@ -241,8 +241,10 @@ jobs:
 
               const errors = validateCommitMessage(commit.message);
               if (errors.length > 0) {
+                const subject = (commit.message || '').replace(/\r\n/g, '\n').split('\n', 1)[0] || '';
                 violations.push({
                   sha: (commit.sha || '').slice(0, 7),
+                  subject,
                   errors,
                 });
               }
@@ -250,7 +252,10 @@ jobs:
 
             if (violations.length > 0) {
               const details = violations
-                .map((violation) => `- ${violation.sha}: ${violation.errors.join(' | ')}`)
+                .map((violation) => {
+                  const safeSubject = violation.subject === '' ? '(empty subject)' : violation.subject;
+                  return `- ${violation.sha} | ${safeSubject} | ${violation.errors.join(' | ')}`;
+                })
                 .join('\n');
               core.setFailed(`Commit message validation failed:\n${details}`);
               return;
