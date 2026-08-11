@@ -20,6 +20,14 @@ jobs:
           script: |
             const isTrailerLine = (line) => /^[A-Za-z-]+:\s+.+$/.test(line);
             const isCoAuthoredBy = (line) => /^Co-authored-by:\s+.+$/i.test(line);
+            const nonImperativeStarters = new Set([
+              'initial',
+              'misc',
+              'planning',
+              'plan',
+              'update',
+              'updates',
+            ]);
 
             const validateCommitMessage = (message) => {
               const errors = [];
@@ -43,9 +51,22 @@ jobs:
                 errors.push('Subject must start with a capital letter.');
               }
 
+              // Imperative heuristic:
+              // - first word must begin with a capital letter
+              // - first word must not be a known non-imperative starter
+              // - first word must not look like a gerund (ends in "ing")
               const firstWord = (subject.match(/^([^\s]+)/) || [])[1] || '';
-              if (/^\p{Lu}/u.test(subject) && !/^\p{Lu}[\p{L}'-]*$/u.test(firstWord)) {
-                errors.push('Subject must begin with an imperative verb (capitalized first-word heuristic).');
+              const normalizedFirstWord = firstWord.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '');
+              const lowerFirstWord = normalizedFirstWord.toLowerCase();
+              if (
+                /^\p{Lu}/u.test(subject) &&
+                (
+                  normalizedFirstWord === '' ||
+                  nonImperativeStarters.has(lowerFirstWord) ||
+                  /ing$/i.test(lowerFirstWord)
+                )
+              ) {
+                errors.push('Subject must begin with an imperative verb (heuristic rejects starters like Initial/Planning/Misc and words ending in "ing").');
               }
 
               if (/\.$/.test(subject)) {
@@ -121,6 +142,21 @@ jobs:
                   expectValid: false,
                 },
                 {
+                  name: 'invalid non-imperative initial',
+                  message: 'Initial plan',
+                  expectValid: false,
+                },
+                {
+                  name: 'invalid non-imperative planning',
+                  message: 'Planning updates',
+                  expectValid: false,
+                },
+                {
+                  name: 'invalid non-imperative misc',
+                  message: 'Misc fixes',
+                  expectValid: false,
+                },
+                {
                   name: 'invalid conventional prefix',
                   message: 'feat: add workflow checks',
                   expectValid: false,
@@ -169,6 +205,7 @@ jobs:
             if (context.eventName === 'pull_request') {
               const pullNumber = context.payload.pull_request.number;
               let page = 1;
+              // Always validate the full PR commit history via API pagination.
               while (true) {
                 const response = await github.rest.pulls.listCommits({
                   owner,
