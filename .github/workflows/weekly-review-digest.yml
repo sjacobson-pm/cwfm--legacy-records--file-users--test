@@ -1,0 +1,283 @@
+name: weekly review digest
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: Number of days to include in the digest window
+        required: false
+        default: '7'
+
+jobs:
+  weekly-review-digest:
+    name: weekly review digest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Generate digest issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const inputDays = context.payload.inputs?.lookback_days;
+            const lookbackDays = Math.max(Number.parseInt(inputDays || '7', 10) || 7, 1);
+            const now = new Date();
+            const since = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+            const sinceIso = since.toISOString();
+            const periodDate = now.toISOString().slice(0, 10);
+            const issueTitle = `Weekly Architecture & Security Review — ${periodDate}`;
+
+            core.info(`Digest window start: ${sinceIso}`);
+            core.info(`Digest issue title: ${issueTitle}`);
+
+            const existingIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'all',
+              per_page: 100,
+            });
+            const duplicateIssue = existingIssues.find(
+              (item) => !item.pull_request && item.title === issueTitle,
+            );
+
+            if (duplicateIssue) {
+              core.notice(`Skipping duplicate issue creation. Found #${duplicateIssue.number}.`);
+              return;
+            }
+
+            const mergedPulls = [];
+            let page = 1;
+            while (true) {
+              const response = await github.request('GET /repos/{owner}/{repo}/pulls', {
+                owner,
+                repo,
+                state: 'closed',
+                sort: 'updated',
+                direction: 'desc',
+                per_page: 100,
+                page,
+              });
+
+              const pulls = response.data;
+              if (pulls.length === 0) {
+                break;
+              }
+
+              let reachedOlderThanWindow = false;
+              for (const pr of pulls) {
+                if (!pr.merged_at) {
+                  continue;
+                }
+
+                const mergedAt = new Date(pr.merged_at);
+                if (mergedAt < since) {
+                  reachedOlderThanWindow = true;
+                  continue;
+                }
+
+                if ((pr.user?.login || '').endsWith('[bot]')) {
+                  continue;
+                }
+
+                mergedPulls.push(pr);
+              }
+
+              if (reachedOlderThanWindow && mergedPulls.length > 0) {
+                break;
+              }
+
+              if (pulls.length < 100) {
+                break;
+              }
+
+              page += 1;
+            }
+
+            if (mergedPulls.length === 0) {
+              core.notice(`No merged PRs found since ${sinceIso}.`);
+              return;
+            }
+
+            const sensitiveMatchers = [
+              /^\.github\/workflows\//,
+              /^\.github\/CODEOWNERS$/,
+              /^\.github\/copilot-instructions\.md$/,
+              /^\.github\/pull_request_template\.md$/,
+              /^auth\//,
+              /^security\//,
+              /^db\/migrations\//,
+              /^schema\//,
+              /^api\//,
+              /^openapi\//,
+            ];
+            const riskLabelMatchers = [
+              /security/i,
+              /architecture/i,
+              /auth/i,
+              /permission/i,
+              /policy/i,
+              /workflow/i,
+              /governance/i,
+              /migration/i,
+              /breaking/i,
+            ];
+
+            const getChangedFiles = async (pullNumber) => {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner,
+                repo,
+                pull_number: pullNumber,
+                per_page: 100,
+              });
+              return files.map((file) => file.filename);
+            };
+
+            const summarizeRisk = (labels, files) => {
+              const riskTags = [];
+              if (labels.some((name) => riskLabelMatchers.some((matcher) => matcher.test(name)))) {
+                riskTags.push('label-indicated risk');
+              }
+
+              const sensitiveFiles = files.filter((path) => sensitiveMatchers.some((matcher) => matcher.test(path)));
+              if (sensitiveFiles.length > 0) {
+                riskTags.push(`sensitive paths (${sensitiveFiles.length})`);
+              }
+
+              return {
+                riskTags,
+                sensitiveFiles,
+              };
+            };
+
+            const pullSummaries = [];
+            for (const pr of mergedPulls) {
+              const labels = (pr.labels || []).map((label) => label.name).filter(Boolean);
+              const files = await getChangedFiles(pr.number);
+              const { riskTags, sensitiveFiles } = summarizeRisk(labels, files);
+
+              const filePreview = files.slice(0, 5).map((f) => `\`${f}\``).join(', ');
+              const sensitivePreview = sensitiveFiles.slice(0, 5).map((f) => `\`${f}\``).join(', ');
+
+              pullSummaries.push({
+                number: pr.number,
+                title: pr.title,
+                url: pr.html_url,
+                author: pr.user?.login || 'unknown',
+                mergedAt: pr.merged_at,
+                labels,
+                fileCount: files.length,
+                filePreview,
+                riskTags,
+                sensitiveCount: sensitiveFiles.length,
+                sensitivePreview,
+              });
+            }
+
+            const codeownersContent = await github.rest.repos.getContent({
+              owner,
+              repo,
+              path: '.github/CODEOWNERS',
+            });
+
+            let codeownersText = '';
+            if (!Array.isArray(codeownersContent.data) && codeownersContent.data.content) {
+              codeownersText = Buffer.from(codeownersContent.data.content, 'base64').toString('utf8');
+            }
+
+            const ownerMentions = [];
+            const assignees = [];
+            for (const line of codeownersText.split(/\r?\n/)) {
+              const trimmed = line.trim();
+              if (trimmed === '' || trimmed.startsWith('#')) {
+                continue;
+              }
+
+              const handles = trimmed.match(/@[^\s]+/g) || [];
+              for (const handle of handles) {
+                if (!ownerMentions.includes(handle)) {
+                  ownerMentions.push(handle);
+                }
+
+                if (!handle.includes('/') && !assignees.includes(handle.slice(1))) {
+                  assignees.push(handle.slice(1));
+                }
+              }
+            }
+
+            const mentionLine = ownerMentions.length > 0
+              ? ownerMentions.join(' ')
+              : `@${owner}`;
+
+            const sortedSummaries = pullSummaries.sort(
+              (a, b) => new Date(a.mergedAt).getTime() - new Date(b.mergedAt).getTime(),
+            );
+
+            const checklist = sortedSummaries
+              .map((item) => `- [ ] #${item.number} — ${item.title}`)
+              .join('\n');
+
+            const details = sortedSummaries
+              .map((item) => {
+                const labelsText = item.labels.length > 0 ? item.labels.map((name) => `\`${name}\``).join(', ') : 'none';
+                const risksText = item.riskTags.length > 0 ? item.riskTags.join(', ') : 'none identified';
+                const filesText = item.fileCount > 0
+                  ? `${item.fileCount} file(s) changed${item.filePreview ? ` (${item.filePreview}${item.fileCount > 5 ? ', ...' : ''})` : ''}`
+                  : '0 files changed';
+                const sensitiveText = item.sensitiveCount > 0
+                  ? `Sensitive-path highlights: ${item.sensitivePreview}${item.sensitiveCount > 5 ? ', ...' : ''}`
+                  : 'Sensitive-path highlights: none';
+
+                return [
+                  `### PR #${item.number}: ${item.title}`,
+                  `- Link: ${item.url}`,
+                  `- Author: @${item.author}`,
+                  `- Merged: ${item.mergedAt}`,
+                  `- Labels: ${labelsText}`,
+                  `- Risk indicators: ${risksText}`,
+                  `- Files touched: ${filesText}`,
+                  `- ${sensitiveText}`,
+                ].join('\n');
+              })
+              .join('\n\n');
+
+            const body = [
+              '## Description',
+              '',
+              `Weekly governance digest for merged pull requests from **${sinceIso}** to **${now.toISOString()}**.`,
+              '',
+              'Focus areas for human review:',
+              '- Architecture-impacting changes',
+              '- Security-sensitive changes',
+              '- Policy/workflow/permissions changes',
+              '',
+              `Designated reviewers: ${mentionLine}`,
+              '',
+              '## Checklist of PRs to review',
+              '',
+              checklist,
+              '',
+              '## PR digest details',
+              '',
+              details,
+              '',
+              '## No-op behavior',
+              '',
+              'If no merged pull requests are found in a run, this workflow exits without creating an issue.',
+            ].join('\n');
+
+            const issue = await github.rest.issues.create({
+              owner,
+              repo,
+              title: issueTitle,
+              body,
+              assignees: assignees.slice(0, 10),
+            });
+
+            core.info(`Created digest issue #${issue.data.number}.`);
