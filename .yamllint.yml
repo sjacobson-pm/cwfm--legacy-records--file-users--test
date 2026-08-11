@@ -1,0 +1,14 @@
+---
+extends: default
+
+rules:
+  # GitHub Actions uses `on:` as a key; the bare `on` is a valid YAML boolean
+  # but is standard in Actions syntax. Allow it.
+  truthy:
+    allowed-values: ["true", "false", "on", "off"]
+    check-keys: false
+  # Document-start (`---`) is not required for GitHub Actions files.
+  document-start: disable
+  # Allow longer lines in workflow files where inline scripts require it.
+  line-length:
+    max: 160
