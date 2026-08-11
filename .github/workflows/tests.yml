@@ -1,0 +1,77 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run project tests when available
+        shell: bash
+        run: |
+          set -u
+          # Add more run_suite calls as new language stacks are introduced.
+
+          passed_suites=0
+          failed_suites=0
+          discovered_suites=0
+          ran_tests=0
+
+          run_suite() {
+            local suite="$1"
+            shift
+            discovered_suites=$((discovered_suites + 1))
+            echo "Running ${suite}..."
+            if "$@"; then
+              passed_suites=$((passed_suites + 1))
+              ran_tests=1
+              echo "✅ ${suite} passed"
+            else
+              failed_suites=$((failed_suites + 1))
+              ran_tests=1
+              echo "❌ ${suite} failed"
+            fi
+          }
+
+          if [[ -f package.json ]]; then
+            if jq -e '.scripts.test? | type == "string" and length > 0' package.json > /dev/null; then
+              run_suite "npm test" npm test
+            else
+              echo "Skipping npm test: package.json has no test script."
+            fi
+          fi
+
+          # Dotnet support can be expanded with solution-specific filters later.
+          dotnet_projects=$(find . -type f \( -name '*.sln' -o -name '*.csproj' \) | wc -l)
+          if [[ "${dotnet_projects}" -gt 0 ]]; then
+            run_suite "dotnet test" dotnet test --nologo --verbosity normal
+          fi
+
+          if [[ ${ran_tests} -eq 0 ]]; then
+            echo "No tests were discovered yet."
+          fi
+
+          {
+            echo "## tests summary"
+            echo ""
+            echo "- Suites discovered: ${discovered_suites}"
+            echo "- Suites passed: ${passed_suites}"
+            echo "- Suites failed: ${failed_suites}"
+            if [[ ${ran_tests} -eq 0 ]]; then
+              echo "- Result: No test suite found yet (passing by design)."
+            else
+              echo "- Result: Test suites were executed."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ ${failed_suites} -gt 0 ]]; then
+            exit 1
+          fi
