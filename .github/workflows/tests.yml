@@ -32,15 +32,24 @@ jobs:
           fi
 
           has_dotnet_projects=0
-          dotnet_projects=$(find . -type f \( -name '*.sln' -o -name '*.csproj' \) \
+          # Prefer solution files; fall back to individual project files if none exist.
+          dotnet_targets=$(find . -type f -name '*.sln' \
             -not -path '*/node_modules/*' \
-            -not -path '*/vendor/*' | wc -l)
-          if [[ "${dotnet_projects}" -gt 0 ]]; then
+            -not -path '*/vendor/*')
+          if [[ -z "${dotnet_targets}" ]]; then
+            dotnet_targets=$(find . -type f -name '*.csproj' \
+              -not -path '*/node_modules/*' \
+              -not -path '*/vendor/*')
+          fi
+          if [[ -n "${dotnet_targets}" ]]; then
             has_dotnet_projects=1
           fi
 
           echo "has_npm_test=${has_npm_test}" >> "${GITHUB_OUTPUT}"
           echo "has_dotnet_projects=${has_dotnet_projects}" >> "${GITHUB_OUTPUT}"
+          # Store newline-separated paths as a space-separated list for later use.
+          dotnet_targets_list=$(echo "${dotnet_targets}" | tr '\n' ' ' | xargs)
+          echo "dotnet_targets=${dotnet_targets_list}" >> "${GITHUB_OUTPUT}"
 
       - name: Setup Node.js
         if: steps.detect.outputs.has_npm_test == '1'
@@ -59,6 +68,7 @@ jobs:
         env:
           HAS_NPM_TEST: ${{ steps.detect.outputs.has_npm_test }}
           HAS_DOTNET_PROJECTS: ${{ steps.detect.outputs.has_dotnet_projects }}
+          DOTNET_TARGETS: ${{ steps.detect.outputs.dotnet_targets }}
         run: |
           set -euo pipefail
           # Add more run_suite calls as new language stacks are introduced.
@@ -104,10 +114,12 @@ jobs:
             fi
           fi
 
-          # Dotnet support can be expanded with solution-specific filters later.
           if [[ "${HAS_DOTNET_PROJECTS}" == "1" ]]; then
             if command -v dotnet > /dev/null; then
-              run_suite "dotnet test" dotnet test --nologo --verbosity normal
+              for target in ${DOTNET_TARGETS}; do
+                run_suite "dotnet test ${target}" \
+                  dotnet test "${target}" --nologo --verbosity normal
+              done
             else
               setup_failures=$((setup_failures + 1))
               echo "❌ dotnet SDK is not available"
