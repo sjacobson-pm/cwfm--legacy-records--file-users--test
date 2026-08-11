@@ -1,33 +1,37 @@
 # Lint policy
 
-The `lint` check applies file-type-appropriate rules so that prose-heavy
-documentation and strict workflow/config files are not held to the same
-line-length standard.
-
-## Rules by file type
-
-| File type | Tool | Line-length rule |
-|---|---|---|
-| Markdown (`*.md`) | markdownlint-cli2 | Not enforced (`MD013: false`) — write prose naturally |
-| YAML (workflows, config) | yamllint | Max 160 characters |
+The `lint` check applies file-type-appropriate rules. Configuration files live
+at the repository root and are wired into `.github/workflows/lint.yml`.
 
 ## Markdown
 
-Markdown files are linted with markdownlint-cli2 using the configuration in
-`.markdownlint-cli2.jsonc`. The line-length rule (`MD013`) is disabled because
-wrapping prose at a hard column limit reduces readability without improving
-correctness. All other default markdownlint rules apply.
+Markdown files (`*.md`) are linted with markdownlint-cli2 using the
+configuration in `.markdownlint-cli2.jsonc`. All default markdownlint rules
+apply except those explicitly disabled below.
+
+| Rule | Name | Enforcement | Rationale |
+|---|---|---|---|
+| MD013 | Line length | Disabled | Prose wrapping at a hard column limit reduces readability without improving correctness. Markdown docs should read naturally. |
+| MD022 | Blanks around headings | Disabled | Compact reference docs and GitHub config files use tight heading spacing; enforcing blank lines adds unnecessary churn. |
+| MD032 | Blanks around lists | Disabled | Compact reference docs often place lists directly adjacent to other content; this rule is too strict for dense documentation. |
+| MD041 | First line heading | Disabled | PR templates and GitHub configuration files do not begin with a top-level heading by design. |
+| MD051 | Link fragments | Disabled | Fragment validation produces false positives in some Markdown renderers and on GitHub. |
+| MD060 | Table column style | Disabled | Both compact and padded pipe styles are valid and readable; enforcing one style adds noise to table edits. |
 
 ## YAML
 
 YAML files (including GitHub Actions workflows and repository config) are
-linted with yamllint using the configuration in `.yamllint.yml`. Line length
-is capped at 160 characters to keep workflow files readable and diff-friendly.
-Inline scripts inside workflow steps may require longer lines, and this limit
-accommodates them.
+linted with yamllint using the configuration in `.yamllint.yml`. The base
+`default` profile applies except where overridden below.
+
+| Rule | Name | Enforcement | Rationale |
+|---|---|---|---|
+| truthy | Truthy values | `allowed-values: ["true", "false", "on", "off"]`, `check-keys: false` | GitHub Actions uses `on:` as a mapping key. Without this override yamllint rejects the standard `on:` trigger syntax as a bare boolean. |
+| document-start | Document start marker | Disabled | The leading `---` marker is not required in GitHub Actions workflow files and omitting it is the prevailing convention. |
+| line-length | Line length | Max 160 characters | Keeps workflow files readable and diff-friendly while accommodating inline shell scripts inside `run:` blocks, which frequently exceed 80–120 characters. |
 
 ## Extending the policy
 
-Both configurations live at the repository root. To add lint coverage for a
-new file type, add the appropriate tool and config file, then wire it into
-`.github/workflows/lint.yml` as a new step.
+To add lint coverage for a new file type, add the appropriate tool and config
+file at the repository root, then wire it into `.github/workflows/lint.yml` as
+a new step.
