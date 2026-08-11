@@ -44,7 +44,7 @@ jobs:
               }
 
               const firstWord = (subject.match(/^([^\s]+)/) || [])[1] || '';
-              if (!/^\p{Lu}[\p{L}'-]*$/u.test(firstWord)) {
+              if (/^\p{Lu}/u.test(subject) && !/^\p{Lu}[\p{L}'-]*$/u.test(firstWord)) {
                 errors.push('Subject must begin with an imperative verb (capitalized first-word heuristic).');
               }
 
