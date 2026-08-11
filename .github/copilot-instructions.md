@@ -28,6 +28,46 @@ Use review comments for high-signal, high-confidence risks in this pull request.
 - Do not re-surface previously accepted low-priority patterns.
 - Treat CI-owned categories (format, lint, basic style) as CI responsibility unless you see additional correctness or security risk.
 
+## Contributor workflow requirements
+- Read `CONTRIBUTING.md` before starting work and follow it.
+- Inspect required status checks before handoff and ensure your own PR
+  passes:
+  - `lint`
+  - `tests`
+  - `commit-message-validation`
+  - `pr-compliance`
+- Do not consider work complete if any required check is failing.
+- Do not create placeholder/planning commits such as `Initial plan`,
+  `WIP`, `Draft`, or `Add placeholder`.
+- Keep planning in issue comments, PR descriptions, documentation files,
+  or agent reasoning rather than commit history.
+
+## Commit message rules
+- Subject must start with a capitalized imperative verb.
+- Subject must be 70 characters or fewer.
+- Subject must not end with a period.
+- Subject must not use prefixes such as `[agent]:`, `[chore]:`,
+  `feat:`, or `fix:`.
+- Commit body must be separated from the subject by a blank line.
+- Commit body lines must wrap at 70 characters or fewer.
+- `Co-authored by:` trailers are allowed and must appear only at the end
+  of the commit message.
+
+## Pull request expectations
+- Use the repository PR template and complete all required fields.
+- Link the related issue in the `Related Issue` section.
+- Ensure the PR is ready to pass `pr-compliance` before handoff.
+
+## Pull request template
+- Use the PR template provided in `.github/pull_request_template.md`.
+- Do not remove or alter template sections.
+- Fill in each section as appropriate:
+  - If a section does not apply, write `N/A` instead of deleting it.
+  - Do not leave sections blank or remove them from the PR body.
+- Keep all section headings intact.
+- The PR template is validated by the `pr-compliance` check, so
+  preserving structure is required.
+
 ## Contributor rules
 See `CONTRIBUTING.md` for guidance on how to best contribute
 to this repository.

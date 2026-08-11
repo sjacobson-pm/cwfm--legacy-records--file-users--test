@@ -75,6 +75,8 @@ requesting review.
 
 ## Notes for automated contributors
 
+- Read `.github/copilot-instructions.md` before starting work, then
+  follow this `CONTRIBUTING.md` guide for full repository conventions.
 - **Do not create placeholder planning commits** such as
   `Initial plan`, `WIP`, or `Add placeholder`. Planning
   belongs in issue comments, PR descriptions, reasoning,
