@@ -25,11 +25,16 @@ an issue before starting work, and reference it in your PR.
 Add CodeQL security scanning workflow
 ```
 
-**Bad:**
+**Bad — placeholder planning commit:**
 
 ```
-feat: add codeql workflow.
-[agent]: Initial plan
+Initial plan
+```
+
+**Bad — prefix convention:**
+
+```
+[agent]: add codeql workflow
 ```
 
 ### Body (optional)
