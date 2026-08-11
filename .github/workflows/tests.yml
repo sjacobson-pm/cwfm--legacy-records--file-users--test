@@ -1,0 +1,151 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect available test suites
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_npm_test=0
+          if [[ -f package.json ]]; then
+            test_script=$(python3 -c \
+              "import json,sys; d=json.load(open('package.json')); print(d.get('scripts',{}).get('test',''))")
+            if [[ -n "${test_script}" && "${test_script}" != "echo \"Error: no test specified\" && exit 1" ]]; then
+              has_npm_test=1
+            fi
+          fi
+
+          has_dotnet_projects=0
+          # Prefer solution files; fall back to individual project files if none exist.
+          dotnet_targets=$(find . -type f -name '*.sln' \
+            -not -path '*/node_modules/*' \
+            -not -path '*/vendor/*')
+          if [[ -z "${dotnet_targets}" ]]; then
+            dotnet_targets=$(find . -type f -name '*.csproj' \
+              -not -path '*/node_modules/*' \
+              -not -path '*/vendor/*')
+          fi
+          if [[ -n "${dotnet_targets}" ]]; then
+            has_dotnet_projects=1
+          fi
+
+          echo "has_npm_test=${has_npm_test}" >> "${GITHUB_OUTPUT}"
+          echo "has_dotnet_projects=${has_dotnet_projects}" >> "${GITHUB_OUTPUT}"
+          # Store newline-separated paths as a space-separated list for later use.
+          dotnet_targets_list=$(echo "${dotnet_targets}" | tr '\n' ' ' | xargs)
+          echo "dotnet_targets=${dotnet_targets_list}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.has_npm_test == '1'
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup .NET SDK
+        if: steps.detect.outputs.has_dotnet_projects == '1'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run project tests when available
+        shell: bash
+        env:
+          HAS_NPM_TEST: ${{ steps.detect.outputs.has_npm_test }}
+          HAS_DOTNET_PROJECTS: ${{ steps.detect.outputs.has_dotnet_projects }}
+          DOTNET_TARGETS: ${{ steps.detect.outputs.dotnet_targets }}
+        run: |
+          set -euo pipefail
+          # Add more run_suite calls as new language stacks are introduced.
+
+          passed_suites=0
+          failed_suites=0
+          discovered_suites=0
+          setup_failures=0
+
+          run_suite() {
+            local suite="$1"
+            shift
+            discovered_suites=$((discovered_suites + 1))
+            echo "Running ${suite}..."
+            if "$@"; then
+              passed_suites=$((passed_suites + 1))
+              echo "✅ ${suite} passed"
+            else
+              failed_suites=$((failed_suites + 1))
+              echo "❌ ${suite} failed"
+            fi
+          }
+
+          if [[ "${HAS_NPM_TEST}" == "1" ]]; then
+            npm_setup_ok=0
+            if [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
+              if npm ci; then
+                npm_setup_ok=1
+              else
+                setup_failures=$((setup_failures + 1))
+                echo "❌ npm ci failed"
+              fi
+            else
+              if npm install --no-audit --no-fund; then
+                npm_setup_ok=1
+              else
+                setup_failures=$((setup_failures + 1))
+                echo "❌ npm install failed"
+              fi
+            fi
+            if [[ ${npm_setup_ok} -eq 1 ]]; then
+              run_suite "npm test" npm test
+            fi
+          fi
+
+          if [[ "${HAS_DOTNET_PROJECTS}" == "1" ]]; then
+            if command -v dotnet > /dev/null; then
+              for target in ${DOTNET_TARGETS}; do
+                run_suite "dotnet test ${target}" \
+                  dotnet test "${target}" --nologo --verbosity normal
+              done
+            else
+              setup_failures=$((setup_failures + 1))
+              echo "❌ dotnet SDK is not available"
+            fi
+          fi
+
+          if [[ ${discovered_suites} -eq 0 ]]; then
+            echo "No tests were discovered yet."
+          fi
+
+          {
+            echo "## tests summary"
+            echo ""
+            echo "- Suites discovered: ${discovered_suites}"
+            echo "- Suites passed: ${passed_suites}"
+            echo "- Suites failed: ${failed_suites}"
+            echo "- Setup failures: ${setup_failures}"
+            if [[ ${discovered_suites} -eq 0 && ${setup_failures} -gt 0 ]]; then
+              echo "- Result: Setup failed before tests could run."
+            elif [[ ${discovered_suites} -eq 0 ]]; then
+              echo "- Result: No test suite found yet (passing by design)."
+            else
+              echo "- Result: Test suites were executed."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ ${failed_suites} -gt 0 || ${setup_failures} -gt 0 ]]; then
+            exit 1
+          fi
