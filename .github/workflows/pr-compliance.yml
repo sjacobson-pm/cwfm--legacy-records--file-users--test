@@ -10,76 +10,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check PR description fields
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          set -e
-          # Strip Copilot agent suffix block (appended automatically, may be unclosed)
-          PR_BODY=$(echo "$PR_BODY" | sed '/<!-- START COPILOT CODING AGENT SUFFIX -->/,$d')
-          ERRORS=()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const title = context.payload.pull_request.title || '';
+            const errors = [];
 
-          # Validate PR title: must start with an imperative verb (capitalized word) and be ≤70 chars
-          TITLE_LEN=${#PR_TITLE}
-          if [ "$TITLE_LEN" -gt 70 ]; then
-            ERRORS+=("PR title exceeds 70 characters (current length: ${TITLE_LEN}).")
-          fi
-          # Title must start with a capital letter (imperative verb convention)
-          if ! echo "$PR_TITLE" | grep -qE '^[A-Z]'; then
-            ERRORS+=("PR title must begin with a capitalized imperative verb (e.g., 'Add feature', 'Fix bug').")
-          fi
+            // Strip Copilot suffix
+            const clean = body.split('<!-- START COPILOT CODING AGENT SUFFIX -->')[0];
 
-          # Use PR_BODY directly rather than passing as argument to avoid
-          # special character expansion issues in bash function arguments
-          check_section() {
-            local heading="$1"
-            local section
-            section=$(printf '%s' "$PR_BODY" | awk -v h="$heading" '
-              $0 == h {found=1; next}
-              found && /^## /{exit}
-              found{print}
-            ')
-            local content
-            content=$(printf '%s' "$section" | sed '/^[[:space:]]*$/d' | sed '/^[[:space:]]*<!-/,/>/d')
-            [ -n "$content" ]
-          }
+            // Title checks
+            if (title.length > 70) errors.push(`PR title exceeds 70 characters (${title.length}).`);
+            if (!/^[A-Z]/.test(title)) errors.push('PR title must begin with a capitalized imperative verb.');
 
-          # Check ## Description section has content
-          if ! check_section '## Description'; then
-            ERRORS+=("Missing or blank required field: 'Description' — provide a summary of your changes.")
-          fi
+            // Section helper
+            const getSection = (heading) => {
+              const regex = new RegExp(`${heading}\\n([\\s\\S]*?)(?=\\n## |$)`);
+              const match = clean.match(regex);
+              if (!match) return '';
+              return match[1].replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*$/gm, '').trim();
+            };
 
-          # Check ## Related Issue section has content
-          if ! check_section '## Related Issue'; then
-            ERRORS+=("Missing or blank required field: 'Related Issue' — link to the related issue.")
-          fi
+            if (!getSection('## Description')) errors.push("Missing or blank: 'Description'");
+            if (!getSection('## Related Issue')) errors.push("Missing or blank: 'Related Issue'");
+            if (!getSection('## Screenshots \\(if appropriate\\)')) errors.push("Missing or blank: 'Screenshots'");
 
-          # Check ## Types of changes: at least one checkbox must be checked [x]
-          TYPES_SECTION=$(echo "$PR_BODY" | awk '/^## Types of changes/{found=1; next} found && /^## /{exit} found{print}')
-          if ! echo "$TYPES_SECTION" | grep -qE '^\- \[[xX]\]'; then
-            ERRORS+=("Missing required field: 'Types of changes' — check at least one box that applies.")
-          fi
+            // Types of changes: at least one checked
+            const types = getSection('## Types of changes');
+            if (!/^- \[[xX]\]/m.test(types)) errors.push("'Types of changes': check at least one box.");
 
-          # Check ## Checklist: all checkboxes must be checked [x]
-          CHECKLIST_SECTION=$(echo "$PR_BODY" | awk '/^## Checklist/{found=1; next} found && /^## /{exit} found{print}')
-          UNCHECKED=$(echo "$CHECKLIST_SECTION" | grep -cE '^\- \[ \]' || true)
-          if [ "$UNCHECKED" -gt 0 ]; then
-            ERRORS+=("Incomplete checklist: ${UNCHECKED} item(s) in the 'Checklist' section are not checked. Complete all checklist items before submitting.")
-          fi
+            // Checklist: no unchecked boxes
+            const checklist = getSection('## Checklist');
+            const unchecked = (checklist.match(/^- \[ \]/gm) || []).length;
+            if (unchecked > 0) errors.push(`Checklist: ${unchecked} unchecked item(s).`);
 
-          # Check ## Screenshots section has content (where applicable)
-          if ! check_section '## Screenshots (if appropriate)'; then
-            ERRORS+=("Missing or blank required field: 'Screenshots' — add screenshots or state 'N/A' if not applicable.")
-          fi
-
-          # Report results
-          if [ ${#ERRORS[@]} -gt 0 ]; then
-            echo "::error::PR compliance check failed. The following required fields are missing or incomplete:"
-            for err in "${ERRORS[@]}"; do
-              echo "  - $err"
-              echo "::error::$err"
-            done
-            exit 1
-          fi
-
-          echo "PR compliance check passed. All required fields are present."
+            if (errors.length > 0) {
+              core.setFailed('PR compliance check failed:\n' + errors.map(e => `  - ${e}`).join('\n'));
+            }
