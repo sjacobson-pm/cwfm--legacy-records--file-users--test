@@ -24,23 +24,29 @@ jobs:
             if (title.length > 70) errors.push(`PR title exceeds 70 characters (${title.length}).`);
             if (!/^[A-Z]/.test(title)) errors.push('PR title must begin with a capitalized imperative verb.');
 
-            // Section helper
+            // Section helper: extract content between headings, strip comments and blanks
             const getSection = (heading) => {
-              const regex = new RegExp(`${heading}\\n([\\s\\S]*?)(?=\\n## |$)`);
-              const match = clean.match(regex);
-              if (!match) return '';
-              return match[1].replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*$/gm, '').trim();
+              const lines = clean.split('\n');
+              let inSection = false;
+              const sectionLines = [];
+              for (const line of lines) {
+                if (line.trim() === heading) { inSection = true; continue; }
+                if (inSection && /^## /.test(line)) break;
+                if (inSection) sectionLines.push(line);
+              }
+              return sectionLines
+                .join('\n')
+                .replace(/<!--[\s\S]*?-->/g, '')
+                .trim();
             };
 
             if (!getSection('## Description')) errors.push("Missing or blank: 'Description'");
             if (!getSection('## Related Issue')) errors.push("Missing or blank: 'Related Issue'");
-            if (!getSection('## Screenshots \\(if appropriate\\)')) errors.push("Missing or blank: 'Screenshots'");
+            if (!getSection('## Screenshots (if appropriate)')) errors.push("Missing or blank: 'Screenshots'");
 
-            // Types of changes: at least one checked
             const types = getSection('## Types of changes');
             if (!/^- \[[xX]\]/m.test(types)) errors.push("'Types of changes': check at least one box.");
 
-            // Checklist: no unchecked boxes
             const checklist = getSection('## Checklist');
             const unchecked = (checklist.match(/^- \[ \]/gm) || []).length;
             if (unchecked > 0) errors.push(`Checklist: ${unchecked} unchecked item(s).`);
